@@ -199,7 +199,294 @@ const NotebookUpload = () => {
   );
 };
 
-const CodeExecutor = () => {
+const VideoGenerator = () => {
+  const [loading, setLoading] = useState(false);
+  const [videoResult, setVideoResult] = useState(null);
+  const [error, setError] = useState(null);
+  const [gradioUrl, setGradioUrl] = useState(null);
+  const [gradioLoading, setGradioLoading] = useState(false);
+
+  const [formData, setFormData] = useState({
+    prompt: "realistic beautiful woman walking confidently in park, elegant dress, natural lighting, professional quality",
+    negative_prompt: "blurry, low quality, distorted, cartoon, anime, artifacts",
+    num_frames: 144,
+    fps: 24,
+    width: 1280,
+    height: 720,
+    motion_bucket_id: 127,
+    noise_aug_strength: 0.02
+  });
+
+  const handleInputChange = (e) => {
+    const { name, value, type } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: type === 'number' ? parseFloat(value) : value
+    }));
+  };
+
+  const generateVideo = async () => {
+    setLoading(true);
+    setError(null);
+    setVideoResult(null);
+
+    try {
+      const response = await axios.post(`${API}/video/generate`, formData);
+      
+      if (response.data.success) {
+        setVideoResult(response.data);
+      } else {
+        setError(response.data.error || "Failed to generate video");
+      }
+    } catch (err) {
+      setError(err.response?.data?.detail || "Error generating video");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const launchGradio = async () => {
+    setGradioLoading(true);
+    setError(null);
+
+    try {
+      const response = await axios.post(`${API}/gradio/launch`);
+      
+      if (response.data.success) {
+        setGradioUrl(response.data.gradio_url);
+      } else {
+        setError(response.data.error || "Failed to launch Gradio interface");
+      }
+    } catch (err) {
+      setError(err.response?.data?.detail || "Error launching Gradio interface");
+    } finally {
+      setGradioLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-white p-8">
+      <div className="max-w-6xl mx-auto">
+        <h1 className="text-4xl font-bold mb-8 text-center">
+          🎬 AI Video Generator
+        </h1>
+        <p className="text-xl text-gray-300 text-center mb-8">
+          Generate 6-second, 720p realistic human female videos using Stable Video Diffusion
+        </p>
+
+        {/* Gradio Interface Section */}
+        <div className="bg-gray-800 rounded-lg p-6 mb-8">
+          <h2 className="text-2xl font-semibold mb-4">🚀 Launch Gradio Interface</h2>
+          <p className="text-gray-300 mb-4">
+            Launch the interactive Gradio interface for easy video generation with real-time preview.
+          </p>
+          
+          <button
+            onClick={launchGradio}
+            disabled={gradioLoading}
+            className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 text-white px-6 py-3 rounded-lg font-semibold mr-4"
+          >
+            {gradioLoading ? "Launching..." : "🎭 Launch Gradio Interface"}
+          </button>
+
+          {gradioUrl && (
+            <div className="mt-4 p-4 bg-green-900 border border-green-700 rounded-lg">
+              <p className="text-green-200 mb-2">✅ Gradio interface launched successfully!</p>
+              <a 
+                href={gradioUrl} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-blue-400 hover:text-blue-300 underline"
+              >
+                🌐 Open Gradio Interface: {gradioUrl}
+              </a>
+            </div>
+          )}
+        </div>
+
+        {/* API-based Generation Section */}
+        <div className="bg-gray-800 rounded-lg p-6 mb-8">
+          <h2 className="text-2xl font-semibold mb-4">⚙️ API-based Generation</h2>
+          
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* Form Inputs */}
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Prompt
+                </label>
+                <textarea
+                  name="prompt"
+                  value={formData.prompt}
+                  onChange={handleInputChange}
+                  className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white"
+                  rows={3}
+                  placeholder="Describe the video you want to generate..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Negative Prompt
+                </label>
+                <textarea
+                  name="negative_prompt"
+                  value={formData.negative_prompt}
+                  onChange={handleInputChange}
+                  className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white"
+                  rows={2}
+                  placeholder="What you don't want in the video..."
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Frames ({formData.num_frames/24}s at {formData.fps}fps)
+                  </label>
+                  <input
+                    type="number"
+                    name="num_frames"
+                    value={formData.num_frames}
+                    onChange={handleInputChange}
+                    min="25"
+                    max="144"
+                    className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    FPS
+                  </label>
+                  <input
+                    type="number"
+                    name="fps"
+                    value={formData.fps}
+                    onChange={handleInputChange}
+                    min="12"
+                    max="30"
+                    className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Motion Bucket ID
+                  </label>
+                  <input
+                    type="number"
+                    name="motion_bucket_id"
+                    value={formData.motion_bucket_id}
+                    onChange={handleInputChange}
+                    min="1"
+                    max="255"
+                    className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Noise Strength
+                  </label>
+                  <input
+                    type="number"
+                    name="noise_aug_strength"
+                    value={formData.noise_aug_strength}
+                    onChange={handleInputChange}
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white"
+                  />
+                </div>
+              </div>
+
+              <button
+                onClick={generateVideo}
+                disabled={loading}
+                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white px-6 py-3 rounded-lg font-semibold"
+              >
+                {loading ? "🎬 Generating Video..." : "🎯 Generate Video"}
+              </button>
+            </div>
+
+            {/* Results */}
+            <div className="space-y-4">
+              {error && (
+                <div className="bg-red-900 border border-red-700 rounded-lg p-4">
+                  <p className="text-red-200">{error}</p>
+                </div>
+              )}
+
+              {videoResult && (
+                <div className="bg-green-900 border border-green-700 rounded-lg p-4">
+                  <h3 className="text-lg font-semibold text-green-400 mb-2">✅ Video Generated!</h3>
+                  <div className="text-sm text-green-200 space-y-1">
+                    <p>📁 Path: {videoResult.video_path}</p>
+                    <p>⏱️ Generation Time: {videoResult.generation_time.toFixed(2)}s</p>
+                    <p>🎞️ Frames: {videoResult.frames_generated}</p>
+                  </div>
+                  
+                  <div className="mt-4">
+                    <video 
+                      controls 
+                      className="w-full rounded-lg"
+                      style={{maxHeight: "400px"}}
+                    >
+                      <source src={`${API}/video/download/${videoResult.video_path.split('/').pop().replace('.mp4', '')}`} type="video/mp4" />
+                      Your browser does not support the video tag.
+                    </video>
+                  </div>
+                </div>
+              )}
+
+              {loading && (
+                <div className="bg-blue-900 border border-blue-700 rounded-lg p-4">
+                  <div className="text-blue-200">
+                    <div className="flex items-center mb-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-400 mr-2"></div>
+                      Generating video...
+                    </div>
+                    <p className="text-sm">This may take 2-5 minutes on T4 GPU</p>
+                    <p className="text-sm">Please wait while we process your request</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Instructions */}
+        <div className="bg-gray-800 rounded-lg p-6">
+          <h2 className="text-2xl font-semibold mb-4">📋 Instructions</h2>
+          <div className="grid md:grid-cols-2 gap-6 text-sm text-gray-300">
+            <div>
+              <h3 className="font-semibold text-white mb-2">🎯 Prompt Tips:</h3>
+              <ul className="space-y-1 list-disc list-inside">
+                <li>Be specific about the subject and action</li>
+                <li>Include lighting and quality descriptors</li>
+                <li>Mention clothing or setting details</li>
+                <li>Use terms like "professional photography"</li>
+              </ul>
+            </div>
+            <div>
+              <h3 className="font-semibold text-white mb-2">⚙️ Technical Settings:</h3>
+              <ul className="space-y-1 list-disc list-inside">
+                <li>144 frames = 6 seconds at 24fps</li>
+                <li>Motion Bucket: Higher = more motion</li>
+                <li>Noise Strength: Lower = more stability</li>
+                <li>Optimized for T4 GPU (15GB VRAM)</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
