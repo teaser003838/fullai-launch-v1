@@ -298,7 +298,16 @@ def execute_python_code(code: str) -> ExecutePythonCodeResponse:
             'plt': plt,
             'numpy': None,
             'pandas': None,
-            'matplotlib': matplotlib
+            'matplotlib': matplotlib,
+            'torch': torch,
+            'Image': Image,
+            'cv2': cv2,
+            'imageio': imageio,
+            'gr': gr,
+            'requests': __import__('requests'),
+            'json': json,
+            'os': os,
+            'sys': sys
         }
         
         # Try to import common packages
