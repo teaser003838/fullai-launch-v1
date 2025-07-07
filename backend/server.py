@@ -93,6 +93,178 @@ class ExecutePythonCodeResponse(BaseModel):
     error: str = None
     plots: List[str] = []
 
+class VideoGenerationRequest(BaseModel):
+    prompt: str = "realistic beautiful woman walking, 6 seconds, high quality"
+    negative_prompt: str = "blurry, low quality, distorted, cartoon"
+    num_frames: int = 144  # 6 seconds * 24 fps
+    fps: int = 24
+    width: int = 1280
+    height: int = 720
+    motion_bucket_id: int = 127
+    noise_aug_strength: float = 0.02
+
+class VideoGenerationResponse(BaseModel):
+    success: bool
+    video_path: str = None
+    error: str = None
+    generation_time: float = 0.0
+    frames_generated: int = 0
+
+class GradioLaunchResponse(BaseModel):
+    success: bool
+    gradio_url: str = None
+    error: str = None
+
+# Video generation helper functions
+def initialize_models():
+    """Initialize video generation models"""
+    global sd_pipe, svd_pipe
+    
+    try:
+        if torch.cuda.is_available():
+            device = "cuda"
+            dtype = torch.float16
+        else:
+            device = "cpu"
+            dtype = torch.float32
+            
+        print(f"Initializing models on {device}")
+        
+        # Initialize Stable Diffusion for image generation
+        sd_pipe = StableDiffusionPipeline.from_pretrained(
+            "runwayml/stable-diffusion-v1-5",
+            torch_dtype=dtype,
+            use_auth_token=hf_token,
+            safety_checker=None,
+            requires_safety_checker=False
+        )
+        sd_pipe = sd_pipe.to(device)
+        sd_pipe.enable_model_cpu_offload()
+        
+        # Initialize Stable Video Diffusion
+        svd_pipe = StableVideoDiffusionPipeline.from_pretrained(
+            "stabilityai/stable-video-diffusion-img2vid-xt-1-1",
+            torch_dtype=dtype,
+            use_auth_token=hf_token,
+            variant="fp16" if dtype == torch.float16 else None
+        )
+        svd_pipe = svd_pipe.to(device)
+        svd_pipe.enable_model_cpu_offload()
+        
+        print("Models initialized successfully")
+        
+    except Exception as e:
+        print(f"Error initializing models: {e}")
+        sd_pipe = None
+        svd_pipe = None
+
+def generate_initial_image(prompt: str, negative_prompt: str = None) -> Image.Image:
+    """Generate initial image using Stable Diffusion"""
+    if sd_pipe is None:
+        raise ValueError("Stable Diffusion model not initialized")
+    
+    enhanced_prompt = f"realistic, highly detailed, beautiful young woman, {prompt}, professional photography, 8k, ultra realistic"
+    
+    image = sd_pipe(
+        prompt=enhanced_prompt,
+        negative_prompt=negative_prompt,
+        width=1280,
+        height=720,
+        num_inference_steps=20,
+        guidance_scale=7.5
+    ).images[0]
+    
+    return image
+
+def generate_video_from_image(
+    image: Image.Image,
+    num_frames: int = 144,
+    motion_bucket_id: int = 127,
+    noise_aug_strength: float = 0.02,
+    fps: int = 24
+) -> str:
+    """Generate video from initial image using SVD"""
+    if svd_pipe is None:
+        raise ValueError("Stable Video Diffusion model not initialized")
+    
+    # Generate video frames
+    frames = svd_pipe(
+        image=image,
+        num_frames=num_frames,
+        motion_bucket_id=motion_bucket_id,
+        noise_aug_strength=noise_aug_strength,
+        decode_chunk_size=8
+    ).frames[0]
+    
+    # Save video
+    video_path = VIDEO_DIR / f"generated_video_{uuid.uuid4()}.mp4"
+    export_to_video(frames, str(video_path), fps=fps)
+    
+    return str(video_path)
+
+def create_gradio_interface():
+    """Create Gradio interface for video generation"""
+    def gradio_generate_video(prompt, negative_prompt, num_frames, fps):
+        try:
+            # Generate initial image
+            image = generate_initial_image(prompt, negative_prompt)
+            
+            # Generate video
+            video_path = generate_video_from_image(
+                image=image,
+                num_frames=int(num_frames),
+                fps=int(fps)
+            )
+            
+            return video_path, "Video generated successfully!"
+            
+        except Exception as e:
+            return None, f"Error: {str(e)}"
+    
+    # Create Gradio interface
+    interface = gr.Interface(
+        fn=gradio_generate_video,
+        inputs=[
+            gr.Textbox(
+                label="Prompt", 
+                value="realistic beautiful woman walking in park, natural lighting",
+                placeholder="Describe the video you want to generate..."
+            ),
+            gr.Textbox(
+                label="Negative Prompt", 
+                value="blurry, low quality, distorted, cartoon, anime",
+                placeholder="What you don't want in the video..."
+            ),
+            gr.Slider(
+                minimum=25,
+                maximum=144,
+                value=144,
+                step=1,
+                label="Number of Frames (144 = 6 seconds at 24fps)"
+            ),
+            gr.Slider(
+                minimum=12,
+                maximum=30,
+                value=24,
+                step=1,
+                label="FPS (Frames Per Second)"
+            )
+        ],
+        outputs=[
+            gr.Video(label="Generated Video"),
+            gr.Textbox(label="Status")
+        ],
+        title="🎬 AI Video Generator",
+        description="Generate realistic human female videos using Stable Video Diffusion. Optimized for T4 GPU.",
+        examples=[
+            ["realistic beautiful woman walking confidently, elegant dress, natural lighting", "blurry, low quality", 144, 24],
+            ["attractive woman sitting in cafe, smiling, professional lighting", "cartoon, anime, low quality", 120, 24],
+            ["beautiful woman dancing gracefully, flowing hair, studio lighting", "distorted, blurry, artifacts", 144, 24]
+        ]
+    )
+    
+    return interface
+
 # Helper functions
 def capture_plots():
     """Capture matplotlib plots as base64 encoded images"""
