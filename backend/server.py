@@ -46,6 +46,30 @@ class StatusCheck(BaseModel):
 class StatusCheckCreate(BaseModel):
     client_name: str
 
+class NotebookExecutionResult(BaseModel):
+    success: bool
+    results: List[Dict[str, Any]]
+    errors: List[str]
+    execution_time: float
+
+class CellOutput(BaseModel):
+    cell_type: str
+    source: str
+    output: str
+    output_type: str
+    execution_count: int
+    error: str = None
+    plots: List[str] = []  # Base64 encoded plots
+
+class ExecutePythonCodeRequest(BaseModel):
+    code: str
+
+class ExecutePythonCodeResponse(BaseModel):
+    success: bool
+    output: str
+    error: str = None
+    plots: List[str] = []
+
 # Add your routes to the router instead of directly to app
 @api_router.get("/")
 async def root():
