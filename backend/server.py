@@ -1,4 +1,5 @@
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, APIRouter, File, UploadFile, HTTPException
+from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -6,9 +7,19 @@ import os
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field
-from typing import List
+from typing import List, Dict, Any
 import uuid
 from datetime import datetime
+import json
+import nbformat
+from nbconvert import PythonExporter
+import io
+import sys
+import traceback
+import base64
+import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend
 
 
 ROOT_DIR = Path(__file__).parent
