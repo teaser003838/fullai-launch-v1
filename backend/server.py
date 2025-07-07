@@ -70,6 +70,141 @@ class ExecutePythonCodeResponse(BaseModel):
     error: str = None
     plots: List[str] = []
 
+# Helper functions
+def capture_plots():
+    """Capture matplotlib plots as base64 encoded images"""
+    plots = []
+    for i in plt.get_fignums():
+        fig = plt.figure(i)
+        buf = io.BytesIO()
+        fig.savefig(buf, format='png', bbox_inches='tight')
+        buf.seek(0)
+        plot_data = base64.b64encode(buf.read()).decode()
+        plots.append(plot_data)
+        plt.close(fig)
+    return plots
+
+def execute_python_code(code: str) -> ExecutePythonCodeResponse:
+    """Execute Python code and capture output"""
+    # Create StringIO objects to capture output
+    old_stdout = sys.stdout
+    old_stderr = sys.stderr
+    stdout_capture = io.StringIO()
+    stderr_capture = io.StringIO()
+    
+    try:
+        # Redirect stdout and stderr
+        sys.stdout = stdout_capture
+        sys.stderr = stderr_capture
+        
+        # Create a new namespace for execution
+        namespace = {
+            '__builtins__': __builtins__,
+            'plt': plt,
+            'numpy': None,
+            'pandas': None,
+            'matplotlib': matplotlib
+        }
+        
+        # Try to import common packages
+        try:
+            import numpy as np
+            import pandas as pd
+            namespace['np'] = np
+            namespace['pd'] = pd
+            namespace['numpy'] = np
+            namespace['pandas'] = pd
+        except ImportError:
+            pass
+        
+        # Execute the code
+        exec(code, namespace)
+        
+        # Capture any plots
+        plots = capture_plots()
+        
+        # Get the output
+        output = stdout_capture.getvalue()
+        error_output = stderr_capture.getvalue()
+        
+        return ExecutePythonCodeResponse(
+            success=True,
+            output=output,
+            error=error_output if error_output else None,
+            plots=plots
+        )
+        
+    except Exception as e:
+        error_msg = f"{type(e).__name__}: {str(e)}\n{traceback.format_exc()}"
+        return ExecutePythonCodeResponse(
+            success=False,
+            output=stdout_capture.getvalue(),
+            error=error_msg
+        )
+    finally:
+        # Restore stdout and stderr
+        sys.stdout = old_stdout
+        sys.stderr = old_stderr
+
+def parse_and_execute_notebook(notebook_content: str) -> NotebookExecutionResult:
+    """Parse and execute a Jupyter notebook"""
+    try:
+        # Parse the notebook
+        notebook = nbformat.reads(notebook_content, as_version=4)
+        
+        results = []
+        errors = []
+        start_time = datetime.now()
+        
+        for i, cell in enumerate(notebook.cells):
+            if cell.cell_type == 'code':
+                # Execute the cell
+                code = cell.source
+                execution_result = execute_python_code(code)
+                
+                cell_result = CellOutput(
+                    cell_type=cell.cell_type,
+                    source=code,
+                    output=execution_result.output,
+                    output_type="execute_result" if execution_result.success else "error",
+                    execution_count=i + 1,
+                    error=execution_result.error,
+                    plots=execution_result.plots
+                )
+                
+                results.append(cell_result.dict())
+                
+                if not execution_result.success:
+                    errors.append(f"Cell {i+1}: {execution_result.error}")
+            
+            elif cell.cell_type == 'markdown':
+                # Handle markdown cells
+                cell_result = CellOutput(
+                    cell_type=cell.cell_type,
+                    source=cell.source,
+                    output=cell.source,  # For markdown, output is the same as source
+                    output_type="markdown",
+                    execution_count=i + 1
+                )
+                results.append(cell_result.dict())
+        
+        execution_time = (datetime.now() - start_time).total_seconds()
+        
+        return NotebookExecutionResult(
+            success=len(errors) == 0,
+            results=results,
+            errors=errors,
+            execution_time=execution_time
+        )
+        
+    except Exception as e:
+        return NotebookExecutionResult(
+            success=False,
+            results=[],
+            errors=[f"Failed to parse notebook: {str(e)}"],
+            execution_time=0.0
+        )
+
 # Add your routes to the router instead of directly to app
 @api_router.get("/")
 async def root():
