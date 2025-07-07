@@ -1,5 +1,5 @@
 from fastapi import FastAPI, APIRouter, File, UploadFile, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -7,7 +7,7 @@ import os
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import uuid
 from datetime import datetime
 import json
@@ -20,6 +20,17 @@ import base64
 import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('Agg')  # Use non-interactive backend
+import torch
+import numpy as np
+from PIL import Image
+import cv2
+import imageio
+import gradio as gr
+from diffusers import StableDiffusionPipeline, StableVideoDiffusionPipeline
+from diffusers.utils import load_image, export_to_video
+import tempfile
+import asyncio
+import shutil
 
 
 ROOT_DIR = Path(__file__).parent
