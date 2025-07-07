@@ -222,6 +222,82 @@ async def get_status_checks():
     status_checks = await db.status_checks.find().to_list(1000)
     return [StatusCheck(**status_check) for status_check in status_checks]
 
+@api_router.post("/notebook/upload", response_model=NotebookExecutionResult)
+async def upload_and_execute_notebook(file: UploadFile = File(...)):
+    """Upload and execute a Jupyter notebook"""
+    if not file.filename.endswith('.ipynb'):
+        raise HTTPException(status_code=400, detail="File must be a .ipynb file")
+    
+    try:
+        content = await file.read()
+        notebook_content = content.decode('utf-8')
+        
+        # Parse and execute the notebook
+        result = parse_and_execute_notebook(notebook_content)
+        
+        return result
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error processing notebook: {str(e)}")
+
+@api_router.post("/execute/python", response_model=ExecutePythonCodeResponse)
+async def execute_python_code_endpoint(request: ExecutePythonCodeRequest):
+    """Execute Python code directly"""
+    try:
+        result = execute_python_code(request.code)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error executing code: {str(e)}")
+
+@api_router.get("/notebook/example")
+async def get_example_notebook():
+    """Get an example notebook for testing"""
+    example_notebook = {
+        "cells": [
+            {
+                "cell_type": "markdown",
+                "metadata": {},
+                "source": ["# Example Notebook\n", "This is a sample notebook for testing purposes."]
+            },
+            {
+                "cell_type": "code",
+                "execution_count": 1,
+                "metadata": {},
+                "outputs": [],
+                "source": ["print('Hello from Jupyter!')"]
+            },
+            {
+                "cell_type": "code",
+                "execution_count": 2,
+                "metadata": {},
+                "outputs": [],
+                "source": ["import matplotlib.pyplot as plt\nimport numpy as np\n\n# Create a simple plot\nx = np.linspace(0, 10, 100)\ny = np.sin(x)\n\nplt.figure(figsize=(10, 6))\nplt.plot(x, y)\nplt.title('Sine Wave')\nplt.xlabel('X')\nplt.ylabel('Y')\nplt.grid(True)\nplt.show()"]
+            },
+            {
+                "cell_type": "code",
+                "execution_count": 3,
+                "metadata": {},
+                "outputs": [],
+                "source": ["# Simple calculation\nresult = 2 + 2\nprint(f'2 + 2 = {result}')"]
+            }
+        ],
+        "metadata": {
+            "kernelspec": {
+                "display_name": "Python 3",
+                "language": "python",
+                "name": "python3"
+            },
+            "language_info": {
+                "name": "python",
+                "version": "3.11.0"
+            }
+        },
+        "nbformat": 4,
+        "nbformat_minor": 4
+    }
+    
+    return JSONResponse(content=example_notebook)
+
 # Include the router in the main app
 app.include_router(api_router)
 
