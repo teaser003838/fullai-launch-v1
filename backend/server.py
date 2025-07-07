@@ -41,11 +41,23 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
+# Get HuggingFace token
+hf_token = os.environ.get('HF_TOKEN')
+
+# Global variables for video generation models
+sd_pipe = None
+svd_pipe = None
+gradio_app = None
+
 # Create the main app without a prefix
 app = FastAPI()
 
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
+
+# Video generation directory
+VIDEO_DIR = ROOT_DIR / "generated_videos"
+VIDEO_DIR.mkdir(exist_ok=True)
 
 
 # Define Models
