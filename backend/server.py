@@ -444,6 +444,109 @@ async def execute_python_code_endpoint(request: ExecutePythonCodeRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error executing code: {str(e)}")
 
+@api_router.post("/video/generate", response_model=VideoGenerationResponse)
+async def generate_video_endpoint(request: VideoGenerationRequest):
+    """Generate a video using AI"""
+    start_time = datetime.now()
+    
+    try:
+        # Initialize models if not already done
+        if sd_pipe is None or svd_pipe is None:
+            initialize_models()
+        
+        if sd_pipe is None or svd_pipe is None:
+            raise HTTPException(status_code=500, detail="Video generation models failed to initialize")
+        
+        # Generate initial image
+        image = generate_initial_image(request.prompt, request.negative_prompt)
+        
+        # Generate video
+        video_path = generate_video_from_image(
+            image=image,
+            num_frames=request.num_frames,
+            motion_bucket_id=request.motion_bucket_id,
+            noise_aug_strength=request.noise_aug_strength,
+            fps=request.fps
+        )
+        
+        generation_time = (datetime.now() - start_time).total_seconds()
+        
+        return VideoGenerationResponse(
+            success=True,
+            video_path=video_path,
+            generation_time=generation_time,
+            frames_generated=request.num_frames
+        )
+        
+    except Exception as e:
+        return VideoGenerationResponse(
+            success=False,
+            error=str(e),
+            generation_time=(datetime.now() - start_time).total_seconds()
+        )
+
+@api_router.get("/video/download/{video_id}")
+async def download_video(video_id: str):
+    """Download generated video"""
+    video_path = VIDEO_DIR / f"{video_id}.mp4"
+    
+    if not video_path.exists():
+        raise HTTPException(status_code=404, detail="Video not found")
+    
+    return FileResponse(
+        path=str(video_path),
+        media_type="video/mp4",
+        filename=f"generated_video_{video_id}.mp4"
+    )
+
+@api_router.post("/gradio/launch", response_model=GradioLaunchResponse)
+async def launch_gradio_interface():
+    """Launch Gradio interface for video generation"""
+    global gradio_app
+    
+    try:
+        # Initialize models if not already done
+        if sd_pipe is None or svd_pipe is None:
+            initialize_models()
+        
+        if sd_pipe is None or svd_pipe is None:
+            raise HTTPException(status_code=500, detail="Video generation models failed to initialize")
+        
+        # Create Gradio interface
+        interface = create_gradio_interface()
+        
+        # Launch Gradio app
+        gradio_url = interface.launch(
+            server_name="0.0.0.0",
+            server_port=7860,
+            share=True,
+            show_error=True,
+            quiet=False
+        )
+        
+        gradio_app = interface
+        
+        return GradioLaunchResponse(
+            success=True,
+            gradio_url=gradio_url
+        )
+        
+    except Exception as e:
+        return GradioLaunchResponse(
+            success=False,
+            error=str(e)
+        )
+
+@api_router.get("/gradio/status")
+async def get_gradio_status():
+    """Get Gradio interface status"""
+    global gradio_app
+    
+    if gradio_app is None:
+        return {"status": "not_running", "url": None}
+    else:
+        return {"status": "running", "url": "https://your-gradio-url.gradio.live"}
+
 @api_router.get("/notebook/example")
 async def get_example_notebook():
     """Get an example notebook for testing"""
@@ -452,28 +555,35 @@ async def get_example_notebook():
             {
                 "cell_type": "markdown",
                 "metadata": {},
-                "source": ["# Example Notebook\n", "This is a sample notebook for testing purposes."]
+                "source": ["# AI Video Generation Notebook\n", "This notebook demonstrates AI video generation using Stable Video Diffusion."]
             },
             {
                 "cell_type": "code",
                 "execution_count": 1,
                 "metadata": {},
                 "outputs": [],
-                "source": ["print('Hello from Jupyter!')"]
+                "source": ["print('Initializing AI Video Generation...')"]
             },
             {
                 "cell_type": "code",
                 "execution_count": 2,
                 "metadata": {},
                 "outputs": [],
-                "source": ["import matplotlib.pyplot as plt\nimport numpy as np\n\n# Create a simple plot\nx = np.linspace(0, 10, 100)\ny = np.sin(x)\n\nplt.figure(figsize=(10, 6))\nplt.plot(x, y)\nplt.title('Sine Wave')\nplt.xlabel('X')\nplt.ylabel('Y')\nplt.grid(True)\nplt.show()"]
+                "source": ["# Import required libraries\nimport torch\nimport gradio as gr\nfrom diffusers import StableDiffusionPipeline, StableVideoDiffusionPipeline\nfrom PIL import Image\nimport requests\n\nprint('Libraries imported successfully')\nprint(f'CUDA available: {torch.cuda.is_available()}')\nif torch.cuda.is_available():\n    print(f'GPU: {torch.cuda.get_device_name()}')\n    print(f'VRAM: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f} GB')"]
             },
             {
                 "cell_type": "code",
                 "execution_count": 3,
                 "metadata": {},
                 "outputs": [],
-                "source": ["# Simple calculation\nresult = 2 + 2\nprint(f'2 + 2 = {result}')"]
+                "source": ["# Launch Gradio interface for video generation\nimport requests\n\nresponse = requests.post('http://localhost:8001/api/gradio/launch')\nresult = response.json()\n\nif result['success']:\n    print(f'✅ Gradio interface launched!')\n    print(f'🌐 Access your video generator at: {result[\"gradio_url\"]}')\n    print('\\n🎬 Generate realistic human female videos:')\n    print('- 6-second videos at 720p resolution')\n    print('- 24 FPS for smooth motion')\n    print('- Optimized for T4 GPU (15GB VRAM)')\n    print('- Professional quality output')\nelse:\n    print(f'❌ Error launching Gradio: {result[\"error\"]}')\n"]
+            },
+            {
+                "cell_type": "code",
+                "execution_count": 4,
+                "metadata": {},
+                "outputs": [],
+                "source": ["# Example API call for video generation\nimport requests\nimport json\n\n# Video generation parameters\nvideo_request = {\n    'prompt': 'realistic beautiful woman walking confidently in park, elegant dress, natural lighting, professional quality',\n    'negative_prompt': 'blurry, low quality, distorted, cartoon, anime, artifacts',\n    'num_frames': 144,  # 6 seconds at 24fps\n    'fps': 24,\n    'width': 1280,\n    'height': 720,\n    'motion_bucket_id': 127,\n    'noise_aug_strength': 0.02\n}\n\nprint('🎬 Generating video with parameters:')\nprint(json.dumps(video_request, indent=2))\nprint('\\n⏳ This may take a few minutes on T4 GPU...')\n\n# Generate video\nresponse = requests.post('http://localhost:8001/api/video/generate', json=video_request)\nresult = response.json()\n\nif result['success']:\n    print(f'✅ Video generated successfully!')\n    print(f'📁 Video path: {result[\"video_path\"]}')\n    print(f'⏱️ Generation time: {result[\"generation_time\"]:.2f} seconds')\n    print(f'🎞️ Frames generated: {result[\"frames_generated\"]}')\nelse:\n    print(f'❌ Error generating video: {result[\"error\"]}')\n"]
             }
         ],
         "metadata": {
