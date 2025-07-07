@@ -371,39 +371,6 @@ const VideoGenerator = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Motion Bucket ID
-                  </label>
-                  <input
-                    type="number"
-                    name="motion_bucket_id"
-                    value={formData.motion_bucket_id}
-                    onChange={handleInputChange}
-                    min="1"
-                    max="255"
-                    className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Noise Strength
-                  </label>
-                  <input
-                    type="number"
-                    name="noise_aug_strength"
-                    value={formData.noise_aug_strength}
-                    onChange={handleInputChange}
-                    min="0"
-                    max="1"
-                    step="0.01"
-                    className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white"
-                  />
-                </div>
-              </div>
-
               <button
                 onClick={generateVideo}
                 disabled={loading}
@@ -429,17 +396,6 @@ const VideoGenerator = () => {
                     <p>⏱️ Generation Time: {videoResult.generation_time.toFixed(2)}s</p>
                     <p>🎞️ Frames: {videoResult.frames_generated}</p>
                   </div>
-                  
-                  <div className="mt-4">
-                    <video 
-                      controls 
-                      className="w-full rounded-lg"
-                      style={{maxHeight: "400px"}}
-                    >
-                      <source src={`${API}/video/download/${videoResult.video_path.split('/').pop().replace('.mp4', '')}`} type="video/mp4" />
-                      Your browser does not support the video tag.
-                    </video>
-                  </div>
                 </div>
               )}
 
@@ -455,31 +411,6 @@ const VideoGenerator = () => {
                   </div>
                 </div>
               )}
-            </div>
-          </div>
-        </div>
-
-        {/* Instructions */}
-        <div className="bg-gray-800 rounded-lg p-6">
-          <h2 className="text-2xl font-semibold mb-4">📋 Instructions</h2>
-          <div className="grid md:grid-cols-2 gap-6 text-sm text-gray-300">
-            <div>
-              <h3 className="font-semibold text-white mb-2">🎯 Prompt Tips:</h3>
-              <ul className="space-y-1 list-disc list-inside">
-                <li>Be specific about the subject and action</li>
-                <li>Include lighting and quality descriptors</li>
-                <li>Mention clothing or setting details</li>
-                <li>Use terms like "professional photography"</li>
-              </ul>
-            </div>
-            <div>
-              <h3 className="font-semibold text-white mb-2">⚙️ Technical Settings:</h3>
-              <ul className="space-y-1 list-disc list-inside">
-                <li>144 frames = 6 seconds at 24fps</li>
-                <li>Motion Bucket: Higher = more motion</li>
-                <li>Noise Strength: Lower = more stability</li>
-                <li>Optimized for T4 GPU (15GB VRAM)</li>
-              </ul>
             </div>
           </div>
         </div>
